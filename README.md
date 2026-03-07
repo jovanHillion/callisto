@@ -1,0 +1,1 @@
+https://sotrh.github.io/learn-wgpu/showcase/stencil/#completing-the-effect
