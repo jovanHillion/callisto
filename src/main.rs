@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use rand::{RngExt, rngs::ThreadRng};
+
 use winit::{
     application::ApplicationHandler,
     event::{self, *},
@@ -21,13 +23,17 @@ pub struct State {
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     is_surface_configured: bool,
+
+    bckg_color: wgpu::Color,
+
+    rng: ThreadRng,
 }
 
 impl State {
     // We don't need this to be async right now,
     // but we will in the next tutorial
     pub async fn new(window: Arc<Window>) -> anyhow::Result<Self> {
-        
+
         let size = window.inner_size();
 
         // The instance is a handle to our GPU
@@ -60,7 +66,7 @@ impl State {
         .find(|f| f.is_srgb()).copied().unwrap_or(surface_caps.formats[0]);
 
         let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,  // escribes how SurfaceTextures will be used. RENDER_ATTACHMENT specifies that the textures will be used to write to the screen 
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,  // escribes how SurfaceTextures will be used. RENDER_ATTACHMENT specifies that the textures will be used to write to the screen
             format: surface_format,                         // defines how SurfaceTextures will be stored on the GPU. We can get a supported format from the SurfaceCapabilities
             width: size.width,                              // width and height are the width and the height in pixels of a SurfaceTexture. This should usually be the width and the height of the window
             height: size.height,                            // make sure that the width and height of the SurfaceTexture are not 0, as that can cause your app to crash.
@@ -70,6 +76,13 @@ impl State {
             desired_maximum_frame_latency: 2,
         };
 
+        let default_color = wgpu::Color {
+            r: 1.0,
+            g: 1.0,
+            b: 1.0,
+            a: 1.0,
+        };
+
         Ok(Self {
             surface,
             device,
@@ -77,6 +90,8 @@ impl State {
             config,
             is_surface_configured: false,
             window,
+            bckg_color: default_color,
+            rng: rand::rng()
         })
     }
 
@@ -90,10 +105,25 @@ impl State {
     }
 
     pub fn handle_key(&self, event_loop: &ActiveEventLoop, code: KeyCode, is_pressed: bool) {
+
         match (code, is_pressed) {
             (KeyCode::Escape, true) => event_loop.exit(),
             _ => {}
         }
+    }
+
+    pub fn handle_mouse_input(&mut self, device_id: DeviceId, state: ElementState, button: MouseButton) {
+        println!("Device id: {:?}", device_id);
+        println!("State: {:?}", state);
+        println!("Button: {:?}", button);
+
+        match state {
+            ElementState::Pressed => {
+                self.bckg_color = wgpu::Color { r: (self.rng.random_range(0.0..1.0)), g: (self.rng.random_range(0.0..1.0)), b: (self.rng.random_range(0.0..1.0)), a: (1.0) };
+            }
+            _ => {}
+        }
+
     }
 
     pub fn update(&mut self) {
@@ -124,12 +154,7 @@ impl State {
                     resolve_target: None,
                     depth_slice: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 1.0,
-                            g: 1.0,
-                            b: 1.0,
-                            a: 1.0,
-                        }),
+                        load: wgpu::LoadOp::Clear(self.bckg_color),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -186,22 +211,22 @@ impl ApplicationHandler<State> for App {
         _window_id: winit::window::WindowId,
         event: WindowEvent,
     ) {
-        let state = match &mut self.state {
+        let my_state = match &mut self.state {
             Some(canvas) => canvas,
             None => return,
         };
 
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
-            WindowEvent::Resized(size) => state.resize(size.width, size.height),
+            WindowEvent::Resized(size) => my_state.resize(size.width, size.height),
             WindowEvent::RedrawRequested => {
-                state.update();
-                match state.render() {
+                my_state.update();
+                match my_state.render() {
                     Ok(_) => {}
                     // Reconfigure the surface if it's lost or outdated
                     Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
-                        let size = state.window.inner_size();
-                        state.resize(size.width, size.height);
+                        let size = my_state.window.inner_size();
+                        my_state.resize(size.width, size.height);
                     }
                     Err(e) => {
                         log::error!("Unable to render {}", e);
@@ -216,7 +241,12 @@ impl ApplicationHandler<State> for App {
                         ..
                     },
                 ..
-            } => state.handle_key(event_loop, code, key_state.is_pressed()),
+            } => {
+                my_state.handle_key(event_loop, code, key_state.is_pressed())
+            }
+            WindowEvent::MouseInput { device_id, state, button } => {
+                my_state.handle_mouse_input(device_id, state, button)
+            }
             _ => {}
         }
     }
@@ -233,7 +263,5 @@ pub fn run() -> anyhow::Result<()> {
 }
 
 fn main() {
-    println!("Hello, world!");
-
     let _ = run();
 }
