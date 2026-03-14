@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
+use callisto::{VERTICES, Vertex};
 use rand::{RngExt, rngs::ThreadRng};
 
-use wgpu::RenderPipeline;
+use wgpu::{RenderPipeline, util::DeviceExt};
 use winit::{
     application::ApplicationHandler,
     event::{self, *},
@@ -28,6 +29,10 @@ pub struct State {
     render_pipeline: wgpu::RenderPipeline,
     second_render_pipeline: wgpu::RenderPipeline,
     pipeline_state: bool,
+
+    // Vertex Buffer
+    vertex_buffer: wgpu::Buffer,
+    num_vertices: u32,
 
     // test
     bckg_color: wgpu::Color,
@@ -90,7 +95,7 @@ impl State {
 
         let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
 
-        let render_pipeline_layout = 
+        let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
                 bind_group_layouts: &[],
@@ -103,13 +108,15 @@ impl State {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),               // Specifies the entry point
-                buffers: &[],                               // Here we are giving the buffer of vertices we want to draw, for now we are creating it in the vertex shader
+                buffers: &[
+                    Vertex::desc(),
+                ],                               // Here we are giving the buffer of vertices we want to draw, for now we are creating it in the vertex shader
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {            // The fragment is technically optional, so you have to wrap it in Some(). We need it if we want to store color data to the surface
                 module: &shader,
                 entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {    // Tells wgpu what color outputs it should set up. Currently, we only need one for the surface. 
+                targets: &[Some(wgpu::ColorTargetState {    // Tells wgpu what color outputs it should set up. Currently, we only need one for the surface.
                     format: config.format,                  // We use the surface's format so that copying to it is easy,
                     blend: Some(wgpu::BlendState::REPLACE), // Specifies that the blending should just replace old pixel data with new data
                     write_mask: wgpu::ColorWrites::ALL,
@@ -143,14 +150,14 @@ impl State {
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
-                entry_point: Some("vs_main"),               // Specifies the entry point
+                entry_point: Some("vs_test_main"),               // Specifies the entry point
                 buffers: &[],                               // Here we are giving the buffer of vertices we want to draw, for now we are creating it in the vertex shader
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {            // The fragment is technically optional, so you have to wrap it in Some(). We need it if we want to store color data to the surface
                 module: &shader,
                 entry_point: Some("fs_test_main"),
-                targets: &[Some(wgpu::ColorTargetState {    // Tells wgpu what color outputs it should set up. Currently, we only need one for the surface. 
+                targets: &[Some(wgpu::ColorTargetState {    // Tells wgpu what color outputs it should set up. Currently, we only need one for the surface.
                     format: config.format,                  // We use the surface's format so that copying to it is easy,
                     blend: Some(wgpu::BlendState::REPLACE), // Specifies that the blending should just replace old pixel data with new data
                     write_mask: wgpu::ColorWrites::ALL,
@@ -179,6 +186,18 @@ impl State {
 
         });
 
+        // Vertex Buffer
+        // The create_buffer_init() method expects a &[u8], so we are using Bytemuck to make it for us
+        let vertex_buffer = device.create_buffer_init( &wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(VERTICES),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        let num_vertices= VERTICES.len() as u32;
+
+        // Index Buffer
+
         Ok(Self {
             surface,
             device,
@@ -189,6 +208,8 @@ impl State {
             render_pipeline,
             second_render_pipeline,
             pipeline_state: false,
+            vertex_buffer,
+            num_vertices,
             bckg_color: default_color,
             rng: rand::rng()
         })
@@ -264,14 +285,22 @@ impl State {
         });
 
         if !self.pipeline_state {
-            render_pass.set_pipeline(&self.render_pipeline); // 2
+            render_pass.set_pipeline(&self.render_pipeline);
+            /*
+                The first is what buffer slot to use for this vertex buffer. You can have multiple vertex buffers set at a time
+
+                The second parameter is the slice of the buffer to use.
+                You can store as many objects in a buffer as your hardware allows, so slice allows us to specify which portion of the buffer to use.
+                We use .. to specify the entire buffer.
+            */
+            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         } else {
-            render_pass.set_pipeline(&self.second_render_pipeline); // 2
+            render_pass.set_pipeline(&self.second_render_pipeline);
         }
-        render_pass.draw(0..3, 0..1);
+        render_pass.draw(0..self.num_vertices, 0..1);
 
         drop(render_pass); // used to drop the reference of the encoder so we can call the finish method from the encoder
-        
+
         // submit will accept anything that implements IntoIter
         self.queue.submit(std::iter::once(encoder.finish())); // tells wgpu to finish the command buffer and submit it to the GPU's render queue.
         output.present();
