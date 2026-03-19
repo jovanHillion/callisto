@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
 mod state;
+mod camera;
+mod camera_controller;
 
 use winit::{
     application::ApplicationHandler,

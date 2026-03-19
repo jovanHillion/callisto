@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+
 use winit::{
     event::*,
     event_loop::{
@@ -18,10 +19,12 @@ use rand::{
 
 use wgpu::{util::DeviceExt};
 
+use crate::camera::{self};
+use crate::camera_controller::{self};
 use callisto::{
-    VERTICES,
-    Vertex
+    INDICES, VERTICES, Vertex
 };
+
 
 // This will store the state of our game
 pub struct State {
@@ -38,11 +41,18 @@ pub struct State {
 
     // Vertex Buffer
     vertex_buffer: wgpu::Buffer,
-    num_vertices: u32,
+    index_buffer: wgpu::Buffer,
+    num_indices: u32,
 
     // test
     bckg_color: wgpu::Color,
     rng: ThreadRng,
+
+    camera: camera::Camera,
+    camera_uniform: camera::CameraUniform,
+    camera_buffer: wgpu::Buffer,
+    camera_bind_group: wgpu::BindGroup,
+    camera_controller: camera_controller::CameraController
 }
 
 impl State {
@@ -101,10 +111,64 @@ impl State {
 
         let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
 
+        let camera = camera::Camera {
+            eye: (0.0, 1.0, 2.0).into(), 
+            look_at: (0.0, 0.0, 0.0).into(),
+            up: cgmath::Vector3::unit_y(),
+            aspect: config.width as f32 / config.height as f32,
+            fovy: 45.0,
+            znear: 0.1,
+            zfar: 1000.0,
+        };
+        let mut camera_uniform = camera::CameraUniform::new();
+        camera_uniform.update_view_proj(&camera);
+
+        let camera_controller = camera_controller::CameraController::new(0.008);
+
+        // Uniform buffer -> Create a bind group with it
+        let camera_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Camera buffer"),
+                contents: bytemuck::cast_slice(&[camera_uniform]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            }
+        );
+
+        let camera_bind_group_layout = device.create_bind_group_layout(
+            &wgpu::BindGroupLayoutDescriptor {
+                label: Some("Camrea Bind Group Layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX, // as we only really need camera information in the vertex shader, to manipulate our vertices
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None
+                    }
+                ]
+            }
+        );
+
+        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("camera_bind_group"),
+            layout: &camera_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: camera_buffer.as_entire_binding()
+                }
+            ]
+        });
+
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[],
+                bind_group_layouts: &[
+                    &camera_bind_group_layout,
+                ],
                 immediate_size: 0,
             });
 
@@ -200,9 +264,14 @@ impl State {
             usage: wgpu::BufferUsages::VERTEX,
         });
 
-        let num_vertices= VERTICES.len() as u32;
-
         // Index Buffer
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            contents: bytemuck::cast_slice(INDICES),
+            usage: wgpu::BufferUsages::INDEX
+        });
+
+        let num_indices= INDICES.len() as u32;
 
         Ok(Self {
             surface,
@@ -215,9 +284,15 @@ impl State {
             second_render_pipeline,
             pipeline_state: false,
             vertex_buffer,
-            num_vertices,
+            index_buffer,
+            num_indices,
             bckg_color: default_color,
-            rng: rand::rng()
+            rng: rand::rng(),
+            camera,
+            camera_uniform,
+            camera_buffer,
+            camera_bind_group,
+            camera_controller
         })
     }
 
@@ -231,11 +306,13 @@ impl State {
     }
 
     pub fn handle_key(&mut self, event_loop: &ActiveEventLoop, code: KeyCode, is_pressed: bool) {
-
+        
         match (code, is_pressed) {
             (KeyCode::Escape, true) => event_loop.exit(),
             (KeyCode::Space, true) => self.pipeline_state = !self.pipeline_state,
-            _ => {}
+            _ => {
+                self.camera_controller.handle_key(code, is_pressed);
+            }
         }
     }
 
@@ -254,7 +331,9 @@ impl State {
     }
 
     pub fn update(&mut self) {
-        // remove `todo!()`
+        self.camera_controller.update_camera(&mut self.camera);
+        self.camera_uniform.update_view_proj(&self.camera);
+        self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -292,6 +371,7 @@ impl State {
 
         if !self.pipeline_state {
             render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
             /*
                 The first is what buffer slot to use for this vertex buffer. You can have multiple vertex buffers set at a time
 
@@ -300,10 +380,12 @@ impl State {
                 We use .. to specify the entire buffer.
             */
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
         } else {
             render_pass.set_pipeline(&self.second_render_pipeline);
+            render_pass.draw(0..3, 0..1);
         }
-        render_pass.draw(0..self.num_vertices, 0..1);
 
         drop(render_pass); // used to drop the reference of the encoder so we can call the finish method from the encoder
 
