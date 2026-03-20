@@ -3,6 +3,7 @@ use std::sync::Arc;
 mod state;
 mod camera;
 mod camera_controller;
+mod texture;
 
 use winit::{
     application::ApplicationHandler,

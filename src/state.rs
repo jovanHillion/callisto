@@ -20,6 +20,7 @@ use rand::{
 use wgpu::{util::DeviceExt};
 
 use crate::camera::{self};
+use crate::texture::{self};
 use crate::camera_controller::{self};
 use callisto::{
     INDICES, VERTICES, Vertex
@@ -52,7 +53,9 @@ pub struct State {
     camera_uniform: camera::CameraUniform,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
-    camera_controller: camera_controller::CameraController
+    camera_controller: camera_controller::CameraController,
+
+    depth_texture: texture::Texture,
 }
 
 impl State {
@@ -204,7 +207,14 @@ impl State {
                 unclipped_depth: false,
                 conservative: false,
             },
-            depth_stencil: None,                    // We're not using a depth/stencil buffer currently, so we leave depth_stencil as None
+            // We're not using a depth/stencil buffer currently, so we leave depth_stencil as None
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default()
+            }),
             multisample: wgpu::MultisampleState {
                 count: 1,                           // Count determines how many samples the pipeline will use
                 mask: !0,                           // Mask specifies which samples should be active. In this case, we are using all of them
@@ -273,6 +283,8 @@ impl State {
 
         let num_indices= INDICES.len() as u32;
 
+        let depth_texture = texture::Texture::create_depth_texture(&device, &config, "depth_texture");
+        
         Ok(Self {
             surface,
             device,
@@ -292,7 +304,8 @@ impl State {
             camera_uniform,
             camera_buffer,
             camera_bind_group,
-            camera_controller
+            camera_controller,
+            depth_texture
         })
     }
 
@@ -363,7 +376,14 @@ impl State {
                     store: wgpu::StoreOp::Store,
                 },
             })],
-            depth_stencil_attachment: None,
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.depth_texture.view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
             occlusion_query_set: None,
             timestamp_writes: None,
             multiview_mask: None,
