@@ -1,10 +1,17 @@
 use std::ops;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct Vector3d {
     pub x: f32,
     pub y: f32,
     pub z: f32,
+}
+
+// From
+impl From<[f32; 3]> for Vector3d {
+    fn from(value: [f32; 3]) -> Self {
+        Vector3d { x: value[0], y: value[1], z: value[2] }
+    }
 }
 
 // Operators
@@ -427,7 +434,7 @@ mod tests {
         assert!(vec_approx_eq(a, Vector3d { x: 5.0, y: 5.0, z: 5.0 }));
     }
 
-    // magnitude ------------------------------------------------------------
+    // Magnitude ------------------------------------------------------------
     #[test]
     fn test_magnitude_unit_x() {
         let v = Vector3d { x: 1.0, y: 0.0, z: 0.0 };
@@ -473,7 +480,7 @@ mod tests {
         assert!(approx_eq(v.magnitude(), 12f32.sqrt()));
     }
 
-    // normalize ------------------------------------------------------------
+    // Normalize ------------------------------------------------------------
     #[test]
     fn test_normalize_unit_x() {
         let v = Vector3d { x: 5.0, y: 0.0, z: 0.0 };
