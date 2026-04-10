@@ -25,4 +25,21 @@ fn main() {
     println!("Matrix[0] -> {:?}", Vector3d::from(matrix_vector[0]));
 
     println!("Matrix -> {:?}", matrix_vector);
+
+    let mut add_assign_matrix = matrix_vector;
+    add_assign_matrix += 10.0;
+    println!("add_assign_matrix -> {:?}", add_assign_matrix);
+    add_assign_matrix -= 10.0;
+    println!("add_assign_matrix -> {:?}", add_assign_matrix);
+    add_assign_matrix *= 2.0;
+    println!("add_assign_matrix -> {:?}", add_assign_matrix);
+
+    let add_matrix = matrix_vector + 10.0;
+    println!("add_matrix -> {:?}", add_matrix);
+
+    let add_matrix = add_matrix - 5.0;
+    println!("add_matrix -> {:?}", add_matrix);
+
+    let add_matrix = add_matrix * 5.0;
+    println!("add_matrix -> {:?}", add_matrix);
 }

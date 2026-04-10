@@ -14,20 +14,13 @@ impl From<[f32; 3]> for Vector3d {
     }
 }
 
-// Operators
-impl ops::Index<usize> for Vector3d {
-    type Output = f32;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        match index {
-            0 => &self.x,
-            1 => &self.y,
-            2 => &self.z,
-            _ => panic!("Index out of range"),
-        }
+impl From<&mut [f32; 3]> for Vector3d {
+    fn from(value: &mut [f32; 3]) -> Self {
+        Vector3d { x: value[0], y: value[1], z: value[2] }
     }
 }
 
+// Operators
 impl ops::IndexMut<usize> for Vector3d {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         match index {
@@ -40,18 +33,18 @@ impl ops::IndexMut<usize> for Vector3d {
 }
 
 impl ops::MulAssign<f32> for Vector3d {
-    fn mul_assign(&mut self, scalar: f32) {
-        self.x *= scalar;
-        self.y *= scalar;
-        self.z *= scalar;
+    fn mul_assign(&mut self, rhs: f32) {
+        self.x *= rhs;
+        self.y *= rhs;
+        self.z *= rhs;
     }
 }
 
 impl ops::DivAssign<f32> for Vector3d {
-    fn div_assign(&mut self, scalar: f32) {
-        self.x /= scalar;
-        self.y /= scalar;
-        self.z /= scalar;
+    fn div_assign(&mut self, rhs: f32) {
+        self.x /= rhs;
+        self.y /= rhs;
+        self.z /= rhs;
     }
 }
 
@@ -71,14 +64,28 @@ impl ops::SubAssign<Vector3d> for Vector3d {
     }
 }
 
+impl ops::Index<usize> for Vector3d {
+    type Output = f32;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        match index {
+            0 => &self.x,
+            1 => &self.y,
+            2 => &self.z,
+            _ => panic!("Index out of range"),
+        }
+    }
+}
+
 impl ops::Mul<f32> for Vector3d {
     type Output = Vector3d;
 
-    fn mul(self, saclar: f32) -> Self::Output {
+    #[inline]
+    fn mul(self, rhs: f32) -> Self::Output {
         Vector3d {
-            x: self.x * saclar,
-            y: self.y * saclar,
-            z: self.z * saclar,
+            x: self.x * rhs,
+            y: self.y * rhs,
+            z: self.z * rhs,
         }
     }
 }
@@ -86,11 +93,12 @@ impl ops::Mul<f32> for Vector3d {
 impl ops::Div<f32> for Vector3d {
     type Output = Vector3d;
 
-    fn div(self, saclar: f32) -> Self::Output {
+    #[inline]
+    fn div(self, rhs: f32) -> Self::Output {
         Vector3d {
-            x: self.x / saclar,
-            y: self.y / saclar,
-            z: self.z / saclar,
+            x: self.x / rhs,
+            y: self.y / rhs,
+            z: self.z / rhs,
         }
     }
 }
@@ -98,6 +106,7 @@ impl ops::Div<f32> for Vector3d {
 impl ops::Add<Vector3d> for Vector3d {
     type Output = Vector3d;
 
+    #[inline]
     fn add(self, rhs: Vector3d) -> Self::Output {
         Vector3d {
             x: self.x + rhs.x,
@@ -110,6 +119,7 @@ impl ops::Add<Vector3d> for Vector3d {
 impl ops::Sub<Vector3d> for Vector3d {
     type Output = Vector3d;
 
+    #[inline]
     fn sub(self, rhs: Vector3d) -> Self::Output {
         Vector3d {
             x: self.x - rhs.x,
@@ -121,18 +131,19 @@ impl ops::Sub<Vector3d> for Vector3d {
 
 // Functions
 impl Vector3d {
+    #[inline]
     fn magnitude(&self) -> f32 {
         f32::sqrt(self.x * self.x + self.y * self.y + self.z * self.z)
     }
 
+    #[inline]
     fn normalize(&self) -> Vector3d {
-        let magnitude = self.magnitude();
+        self.clone() / self.magnitude()
+    }
 
-        Vector3d {
-            x: self.x / magnitude,
-            y: self.y / magnitude,
-            z: self.z / magnitude,
-        }
+    #[inline]
+    fn dot_product(a: Vector3d, b: Vector3d) -> f32 {
+        a.x * b.x + a.y * b.y + a.z * b.z as f32
     }
 }
 
