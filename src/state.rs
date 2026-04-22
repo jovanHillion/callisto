@@ -37,8 +37,6 @@ pub struct State {
     is_surface_configured: bool,
 
     render_pipeline: wgpu::RenderPipeline,
-    second_render_pipeline: wgpu::RenderPipeline,
-    pipeline_state: bool,
 
     // Vertex Buffer
     vertex_buffer: wgpu::Buffer,
@@ -115,7 +113,7 @@ impl State {
         let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
 
         let camera = camera::Camera {
-            eye: (0.0, 1.0, 2.0).into(), 
+            eye: (0.0, 1.0, 2.0).into(),
             look_at: (0.0, 0.0, 0.0).into(),
             up: cgmath::Vector3::unit_y(),
             aspect: config.width as f32 / config.height as f32,
@@ -225,46 +223,6 @@ impl State {
 
         });
 
-        let second_render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&render_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs_test_main"),               // Specifies the entry point
-                buffers: &[],                               // Here we are giving the buffer of vertices we want to draw, for now we are creating it in the vertex shader
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: Some(wgpu::FragmentState {            // The fragment is technically optional, so you have to wrap it in Some(). We need it if we want to store color data to the surface
-                module: &shader,
-                entry_point: Some("fs_test_main"),
-                targets: &[Some(wgpu::ColorTargetState {    // Tells wgpu what color outputs it should set up. Currently, we only need one for the surface.
-                    format: config.format,                  // We use the surface's format so that copying to it is easy,
-                    blend: Some(wgpu::BlendState::REPLACE), // Specifies that the blending should just replace old pixel data with new data
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            // The primitive field describes how to interpret our vertices when converting them into triangles
-            // The front_face and cull_mode fields tell wgpu how to determine whether a given triangle is facing forward or not
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList, // Using PrimitiveTopology::TriangleList means that every three vertices will correspond to one triangle
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,   // FrontFace::Ccw means that a triangle is facing forward if the vertices are arranged in a counter-clockwise direction
-                cull_mode: Some(wgpu::Face::Back),  // Triangles that are not considered facing forward are culled (not included in the render) as specified by CullMode::Bac
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: None,                    // We're not using a depth/stencil buffer currently, so we leave depth_stencil as None
-            multisample: wgpu::MultisampleState {
-                count: 1,                           // Count determines how many samples the pipeline will use
-                mask: !0,                           // Mask specifies which samples should be active. In this case, we are using all of them
-                alpha_to_coverage_enabled: false,   // alpha_to_coverage_enabled has to do with anti-aliasing. We're not covering anti-aliasing here
-            },
-            multiview_mask: None,                   // Multiview indicates how many array layers the render attachments can have. We won't be rendering to array textures, so we can set this to None
-            cache: None,                            // cache allows wgpu to cache shader compilation data. Only really useful for Android build targets
-
-        });
 
         // Vertex Buffer
         // The create_buffer_init() method expects a &[u8], so we are using Bytemuck to make it for us
@@ -284,7 +242,7 @@ impl State {
         let num_indices= INDICES.len() as u32;
 
         let depth_texture = texture::Texture::create_depth_texture(&device, &config, "depth_texture");
-        
+
         Ok(Self {
             surface,
             device,
@@ -293,8 +251,6 @@ impl State {
             is_surface_configured: false,
             window,
             render_pipeline,
-            second_render_pipeline,
-            pipeline_state: false,
             vertex_buffer,
             index_buffer,
             num_indices,
@@ -319,10 +275,10 @@ impl State {
     }
 
     pub fn handle_key(&mut self, event_loop: &ActiveEventLoop, code: KeyCode, is_pressed: bool) {
-        
+
         match (code, is_pressed) {
             (KeyCode::Escape, true) => event_loop.exit(),
-            (KeyCode::Space, true) => self.pipeline_state = !self.pipeline_state,
+            (KeyCode::Space, true) => println!("Space bar pressed"),
             _ => {
                 self.camera_controller.handle_key(code, is_pressed);
             }
@@ -389,23 +345,21 @@ impl State {
             multiview_mask: None,
         });
 
-        if !self.pipeline_state {
-            render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-            /*
-                The first is what buffer slot to use for this vertex buffer. You can have multiple vertex buffers set at a time
 
-                The second parameter is the slice of the buffer to use.
-                You can store as many objects in a buffer as your hardware allows, so slice allows us to specify which portion of the buffer to use.
-                We use .. to specify the entire buffer.
-            */
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
-        } else {
-            render_pass.set_pipeline(&self.second_render_pipeline);
-            render_pass.draw(0..3, 0..1);
-        }
+        // Redering
+        render_pass.set_pipeline(&self.render_pipeline);
+        render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+        render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+        /*
+            The first parameter is the buffer slot to use for this vertex buffer. You can have multiple vertex buffers set at a time
+
+            The second parameter is the slice of the buffer to use.
+            You can store as many objects in a buffer as your hardware allows, so slice allows us to specify which portion of the buffer to use.
+            We use .. to specify the entire buffer.
+        */
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+        render_pass.draw_indexed(0..self.num_indices, 0, 0..1); // TODO: edit this to draw multipe instances
 
         drop(render_pass); // used to drop the reference of the encoder so we can call the finish method from the encoder
 

@@ -66,7 +66,7 @@ pub const VERTICES: &[Vertex] = &[
 
 // Indices data
 pub const INDICES: &[u16] = &[
-    
+
     // Front face
 	0, 1, 2,
     0, 2, 3,
@@ -89,5 +89,5 @@ pub const INDICES: &[u16] = &[
 
     // Bottom face
     20, 22, 21,
-    20, 23, 22 
+    20, 23, 22
 ];

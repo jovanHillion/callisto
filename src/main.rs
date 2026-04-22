@@ -18,6 +18,8 @@ use winit::{
     window::Window
 };
 
+use dot_vox;
+
 pub struct App {
     /*
         The state variable stores our State struct as an option.
@@ -97,7 +99,7 @@ impl ApplicationHandler<state::State> for App {
     }
 }
 
-pub fn run() -> anyhow::Result<()> {
+pub fn run(model: &dot_vox::Model) -> anyhow::Result<()> {
     env_logger::init();
 
     let event_loop = EventLoop::with_user_event().build()?;
@@ -108,5 +110,28 @@ pub fn run() -> anyhow::Result<()> {
 }
 
 fn main() {
-    let _ = run();
+
+    let filename = "assets/chicken.vox";
+
+    let voxel_data = dot_vox::load(filename);
+
+    let voxel_data = match voxel_data {
+        Ok(voxel_data) => voxel_data,
+        Err(_) => return
+    };
+
+    for model in voxel_data.models.iter() {
+        for voxel in model.voxels.iter() {
+            println!("{:?}", voxel);
+        }
+    }
+
+
+    let model = voxel_data.models.first();
+
+    let _ = match model {
+        None => return,
+        Some(model) => run(model)
+    };
+
 }
