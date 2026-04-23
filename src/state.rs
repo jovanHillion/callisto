@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
 
+use cgmath::{AbsDiffEq, InnerSpace, Quaternion, Rotation, Rotation3, Vector3};
+use dot_vox::DotVoxData;
 use winit::{
     event::*,
     event_loop::{
@@ -23,7 +25,7 @@ use crate::camera::{self};
 use crate::texture::{self};
 use crate::camera_controller::{self};
 use callisto::{
-    INDICES, VERTICES, Vertex
+    INDICES, Instance, InstanceRaw, VERTICES, Vertex
 };
 
 
@@ -43,7 +45,11 @@ pub struct State {
     index_buffer: wgpu::Buffer,
     num_indices: u32,
 
-    // test
+    // Instance Buffer
+    instances: Vec<Instance>,
+    instance_buffer: wgpu::Buffer,
+
+    // Test
     bckg_color: wgpu::Color,
     rng: ThreadRng,
 
@@ -180,7 +186,7 @@ impl State {
                 module: &shader,
                 entry_point: Some("vs_main"),               // Specifies the entry point
                 buffers: &[
-                    Vertex::desc(),
+                    Vertex::desc(), InstanceRaw::desc()
                 ],                               // Here we are giving the buffer of vertices we want to draw, for now we are creating it in the vertex shader
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
@@ -239,6 +245,62 @@ impl State {
             usage: wgpu::BufferUsages::INDEX
         });
 
+        // Instancing using a model
+        let filename = "assets/chicken.vox";
+
+        let voxel_data = dot_vox::load(filename);
+
+        let voxel_data = match voxel_data {
+            Ok(voxel_data) => voxel_data,
+            Err(e) => panic!("{}", e),
+        };
+
+        /*
+        for model in voxel_data.models.iter() {
+            for voxel in model.voxels.iter() {
+                println!("{:?}", voxel);
+            }
+        }
+        */
+
+        let model = voxel_data.models.first();
+
+        let model = match model {
+            None => panic!("Model empty"),
+            Some(model) => model
+        };
+
+        let instances = (0..model.voxels.len()).map(|i| {
+
+            let position: cgmath::Vector3<f32> = cgmath::Vector3::new(
+                model.voxels[i].x as f32,
+                model.voxels[i].y as f32,
+                model.voxels[i].z as f32
+            );
+            let rotation = cgmath::Quaternion::new(0.0, 0.0, 0.0, 0.0);
+            // let rotation = cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(90.0));
+            // let rotation = cgmath::Quaternion::from_axis_angle(cgmath::Vector3::unit_y(), cgmath::Deg(90.0));
+
+            Instance {
+                position, rotation
+            }
+
+        }).collect::<Vec<_>>();
+
+        for instance in instances.iter() {
+            println!("{:?}", instance.position);
+            // println!("{:?}", instance.rotation);
+        }
+
+        let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
+        let instance_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Instance Buffer"),
+                contents: bytemuck::cast_slice(&instance_data),
+                usage: wgpu::BufferUsages::VERTEX
+            }
+        );
+
         let num_indices= INDICES.len() as u32;
 
         let depth_texture = texture::Texture::create_depth_texture(&device, &config, "depth_texture");
@@ -254,6 +316,8 @@ impl State {
             vertex_buffer,
             index_buffer,
             num_indices,
+            instances,
+            instance_buffer,
             bckg_color: default_color,
             rng: rand::rng(),
             camera,
@@ -349,7 +413,6 @@ impl State {
         // Redering
         render_pass.set_pipeline(&self.render_pipeline);
         render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-        render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
         /*
             The first parameter is the buffer slot to use for this vertex buffer. You can have multiple vertex buffers set at a time
 
@@ -358,8 +421,10 @@ impl State {
             We use .. to specify the entire buffer.
         */
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
         render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-        render_pass.draw_indexed(0..self.num_indices, 0, 0..1); // TODO: edit this to draw multipe instances
+
+        render_pass.draw_indexed(0..self.num_indices, 0, 0..self.instances.len() as _); // TODO: edit this to draw multipe instances
 
         drop(render_pass); // used to drop the reference of the encoder so we can call the finish method from the encoder
 

@@ -1,3 +1,5 @@
+use wgpu::VertexBufferLayout;
+
 // Pod indicates that our Vertex is "Plain Old Data", and thus can be interpreted as a &[u8]
 // Zeroable indicates that we can use std::mem::zeroed()
 #[repr(C)] // Handling the memory the same way as C does, OpenGL may use the C ABI (align the memory like in c so when the programm allocates the memory it set the bits at the irght position)
@@ -5,6 +7,59 @@
 pub struct Vertex {
     position: [f32; 3],
     color: [f32; 3]
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct  InstanceRaw {
+    model: [[f32; 4]; 4]
+}
+
+impl InstanceRaw {
+    pub fn desc() -> VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<Self>() as wgpu::BufferAddress,
+            // We need to switch from using a step mode of Vertex to Instance
+            // This means that our shaders will only change to use the next
+            // instance when the shader starts processing a new instance
+            step_mode: wgpu::VertexStepMode::Instance,
+            attributes: &[
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 2, // Todo: check if 5 is the right value, I may use 3 instead
+                    format: wgpu::VertexFormat::Float32x4
+                },
+                wgpu::VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
+                    shader_location: 3, // Todo: check if 5 is the right value, I may use 3 instead
+                    format: wgpu::VertexFormat::Float32x4
+                },
+                wgpu::VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 8]>() as wgpu::BufferAddress,
+                    shader_location: 4, // Todo: check if 5 is the right value, I may use 3 instead
+                    format: wgpu::VertexFormat::Float32x4
+                },
+                wgpu::VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 12]>() as wgpu::BufferAddress,
+                    shader_location: 5, // Todo: check if 5 is the right value, I may use 3 instead
+                    format: wgpu::VertexFormat::Float32x4
+                }
+            ]
+        }
+    }
+}
+
+pub struct Instance {
+    pub position: cgmath::Vector3<f32>,
+    pub rotation: cgmath::Quaternion<f32>,
+}
+
+impl Instance {
+    pub fn to_raw(&self) -> InstanceRaw {
+        InstanceRaw {
+            model: (cgmath::Matrix4::from_translation(self.position) * cgmath::Matrix4::from(self.rotation)).into(),
+        }
+    }
 }
 
 impl Vertex {
