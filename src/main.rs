@@ -99,7 +99,7 @@ impl ApplicationHandler<state::State> for App {
     }
 }
 
-pub fn run(model: &dot_vox::Model) -> anyhow::Result<()> {
+pub fn run(_model: &dot_vox::Model) -> anyhow::Result<()> {
     env_logger::init();
 
     let event_loop = EventLoop::with_user_event().build()?;
