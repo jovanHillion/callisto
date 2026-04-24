@@ -1,21 +1,16 @@
 use std::sync::Arc;
 
-mod state;
 mod camera;
 mod camera_controller;
+mod state;
 mod texture;
 
 use winit::{
     application::ApplicationHandler,
     event::*,
-    event_loop::{
-        ActiveEventLoop,
-        EventLoop
-    },
-    keyboard::{
-        PhysicalKey
-    },
-    window::Window
+    event_loop::{ActiveEventLoop, EventLoop},
+    keyboard::PhysicalKey,
+    window::Window,
 };
 
 pub struct App {
@@ -28,9 +23,7 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
-        Self {
-            state: None,
-        }
+        Self { state: None }
     }
 }
 
@@ -86,12 +79,12 @@ impl ApplicationHandler<state::State> for App {
                         ..
                     },
                 ..
-            } => {
-                my_state.handle_key(event_loop, code, key_state.is_pressed())
-            }
-            WindowEvent::MouseInput { device_id, state, button } => {
-                my_state.handle_mouse_input(device_id, state, button)
-            }
+            } => my_state.handle_key(event_loop, code, key_state.is_pressed()),
+            WindowEvent::MouseInput {
+                device_id,
+                state,
+                button,
+            } => my_state.handle_mouse_input(device_id, state, button),
             _ => {}
         }
     }

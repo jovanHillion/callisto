@@ -1,3 +1,4 @@
+use cgmath::{Vector3};
 use wgpu::VertexBufferLayout;
 
 // Pod indicates that our Vertex is "Plain Old Data", and thus can be interpreted as a &[u8]
@@ -11,8 +12,8 @@ pub struct Vertex {
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct  InstanceRaw {
-    model: [[f32; 4]; 4]
+pub struct InstanceRaw {
+    model: [[f32; 4]; 4],
 }
 
 impl InstanceRaw {
@@ -26,24 +27,24 @@ impl InstanceRaw {
             attributes: &[
                 wgpu::VertexAttribute {
                     offset: 0,
-                    shader_location: 2, // Todo: check if 5 is the right value, I may use 3 instead
+                    shader_location: 2,
                     format: wgpu::VertexFormat::Float32x4
                 },
                 wgpu::VertexAttribute {
                     offset: std::mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
-                    shader_location: 3, // Todo: check if 5 is the right value, I may use 3 instead
+                    shader_location: 3,
                     format: wgpu::VertexFormat::Float32x4
                 },
                 wgpu::VertexAttribute {
                     offset: std::mem::size_of::<[f32; 8]>() as wgpu::BufferAddress,
-                    shader_location: 4, // Todo: check if 5 is the right value, I may use 3 instead
+                    shader_location: 4,
                     format: wgpu::VertexFormat::Float32x4
                 },
                 wgpu::VertexAttribute {
                     offset: std::mem::size_of::<[f32; 12]>() as wgpu::BufferAddress,
-                    shader_location: 5, // Todo: check if 5 is the right value, I may use 3 instead
+                    shader_location: 5,
                     format: wgpu::VertexFormat::Float32x4
-                }
+                },
             ]
         }
     }
@@ -57,7 +58,11 @@ pub struct Instance {
 impl Instance {
     pub fn to_raw(&self) -> InstanceRaw {
         InstanceRaw {
-            model: (cgmath::Matrix4::from_translation(self.position) * cgmath::Matrix4::from(self.rotation)).into(),
+            model: (cgmath::Matrix4::from_translation(Vector3 {
+                x: 0.0 as f32,
+                y: 0.0 as f32,
+                z: 0.0 as f32,
+            }) * (cgmath::Matrix4::from(self.rotation) * cgmath::Matrix4::from_translation(self.position))).into(),
         }
     }
 }
