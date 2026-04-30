@@ -319,6 +319,7 @@ impl State {
             self.config.height = height;
             self.surface.configure(&self.device, &self.config);
             self.is_surface_configured = true; // We need the surface to be configured before we can do anything with it. We set the is_surface_configured flag to true here and we'll check it in the render() function
+            self.depth_texture = texture::Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
         }
     }
 
@@ -423,7 +424,7 @@ impl State {
         render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
         render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
-        render_pass.draw_indexed(0..self.num_indices, 0, 0..self.instances.len() as _); // TODO: edit this to draw multipe instances
+        render_pass.draw_indexed(0..self.num_indices, 0, 0..self.instances.len() as _);
 
         drop(render_pass); // used to drop the reference of the encoder so we can call the finish method from the encoder
 

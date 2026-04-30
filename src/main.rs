@@ -56,7 +56,9 @@ impl ApplicationHandler<state::State> for App {
 
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
-            WindowEvent::Resized(size) => my_state.resize(size.width, size.height),
+            WindowEvent::Resized(size) => {
+                my_state.resize(size.width, size.height);
+            }
             WindowEvent::RedrawRequested => {
                 my_state.update();
                 match my_state.render() {
