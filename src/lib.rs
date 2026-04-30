@@ -1,5 +1,5 @@
 use cgmath::{Vector3};
-use wgpu::VertexBufferLayout;
+use wgpu::{VertexBufferLayout};
 
 // Pod indicates that our Vertex is "Plain Old Data", and thus can be interpreted as a &[u8]
 // Zeroable indicates that we can use std::mem::zeroed()
@@ -14,6 +14,7 @@ pub struct Vertex {
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct InstanceRaw {
     model: [[f32; 4]; 4],
+    color: [f32; 4]
 }
 
 impl InstanceRaw {
@@ -45,6 +46,11 @@ impl InstanceRaw {
                     shader_location: 5,
                     format: wgpu::VertexFormat::Float32x4
                 },
+                wgpu::VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 16]>() as wgpu::BufferAddress,
+                    shader_location: 6,
+                    format: wgpu::VertexFormat::Float32x4
+                },
             ]
         }
     }
@@ -53,6 +59,7 @@ impl InstanceRaw {
 pub struct Instance {
     pub position: cgmath::Vector3<f32>,
     pub rotation: cgmath::Quaternion<f32>,
+    pub color: [f32; 4]
 }
 
 impl Instance {
@@ -63,6 +70,7 @@ impl Instance {
                 y: 0.0 as f32,
                 z: 0.0 as f32,
             }) * (cgmath::Matrix4::from(self.rotation) * cgmath::Matrix4::from_translation(self.position))).into(),
+            color: self.color
         }
     }
 }

@@ -4,7 +4,7 @@ A voxel engine built in Rust as a learning project, focused on understanding GPU
 
 ## Objective
 
-Callisto aims to render voxel worlds correctly and efficiently through a software-first approach. The project is built incrementally — starting from basic triangle rendering, moving toward a full voxel engine with real optimizations.
+Callisto aims to render voxel worlds correctly and efficiently through a software-first approach. The project is built incrementally  starting from basic triangle rendering, moving toward a full voxel engine with real optimizations.
 
 This is both a **learning project** and a **technical exploration** of:
 - How a GPU rendering pipeline works (wgpu / WebGPU)
@@ -40,15 +40,15 @@ cargo run
 | Key | Action |
 |-----|--------|
 | `Escape` | Quit |
-| `Space` | Toggle render pipeline |
 | `Arrows` | Move the camera and zoom in, zoom out |
 | Mouse click | Randomize background color |
 
 ## Project Status
 
-🚧 Early development — currently rendering basic geometry with wgpu.
+🚧 Early development  currently rendering basic geometry with wgpu.
 
 ## Usefull links
 
 - [Learn WGPU](https://sotrh.github.io/learn-wgpu/)
 - [WebGPU Fundamentals](https://webgpufundamentals.org/)
+- [VoxBox](https://voxbox.store/)

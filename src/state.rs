@@ -108,18 +108,18 @@ impl State {
         let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
 
         let camera = camera::Camera {
-            eye: (0.0, 1.0, 2.0).into(),
+            eye: (0.0, 2.0, 30.0).into(),
             look_at: (0.0, 0.0, 0.0).into(),
             up: cgmath::Vector3::unit_y(),
             aspect: config.width as f32 / config.height as f32,
-            fovy: 45.0,
+            fovy: 60.0,
             znear: 0.1,
             zfar: 1000.0,
         };
         let mut camera_uniform = camera::CameraUniform::new();
         camera_uniform.update_view_proj(&camera);
 
-        let camera_controller = camera_controller::CameraController::new(0.008);
+        let camera_controller = camera_controller::CameraController::new(0.5);
 
         // Uniform buffer -> Create a bind group with it
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -224,7 +224,7 @@ impl State {
         });
 
         // Instancing a model
-        let filename = "assets/chicken.vox";
+        let filename = "assets/caveexpress-npc-fish.vox";
 
         let voxel_data = dot_vox::load(filename);
         let voxel_data = match voxel_data {
@@ -232,14 +232,16 @@ impl State {
             Err(e) => panic!("{}", e),
         };
 
+        // println!("{:#?}", voxel_data.palette);
+
         let model = voxel_data.models.first();
         let model = match model {
             None => panic!("Model empty"),
             Some(model) => model,
         };
 
-        println!("{:#?}", model.voxels.len());
-        println!("{:#?}", model.size);
+        // println!("{:#?}", model.voxels.len());
+        // println!("{:#?}", model.size);
 
         let translation: cgmath::Vector3<f32> = cgmath::Vector3::new(
             model.size.x as f32,
@@ -259,7 +261,20 @@ impl State {
 
                 let position = position - (translation / 2.0);
 
-                Instance { position, rotation }
+                let color_index = model.voxels[i].i as usize;
+
+                let color = voxel_data.palette.get(color_index);
+
+                let color = match color {
+                    None => panic!("Color out of range"),
+                    Some(color) => color
+                };
+
+                let color = [color.r as f32 / 255.0, color.g as f32 / 255.0, color.b as f32 / 255.0, color.a as f32 / 255.0];
+
+                // println!("{:#?}", color);
+
+                Instance { position, rotation, color }
             }).collect::<Vec<_>>();
 
         let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
