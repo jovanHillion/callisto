@@ -49,33 +49,40 @@ impl CameraController {
 
     pub fn update_camera(&self, camera: &mut camera::Camera) {
         use cgmath::InnerSpace;
-        let forward = camera.look_at - camera.eye;
+        // let forward = camera.look_at - camera.eye;
+        let forward = camera.look_at;
         let forward_norm = forward.normalize();
         let forward_mag = forward.magnitude();
 
         // Prevents glitching when the camera gets too close to the
         // center of the scene.
         if self.is_forward_pressed && forward_mag > self.speed {
-            camera.eye += forward_norm * self.speed;
+            // camera.eye += forward_norm * self.speed;
+            camera.eye += forward * self.speed;
         }
         if self.is_backward_pressed {
-            camera.eye -= forward_norm * self.speed;
+            // camera.eye -= forward_norm * self.speed;
+            camera.eye -= forward * self.speed;
         }
 
         let right = forward_norm.cross(camera.up);
 
         // Redo radius calc in case the forward/backward is pressed.
-        let forward = camera.look_at - camera.eye;
-        let forward_mag = forward.magnitude();
+        // let forward = camera.look_at - camera.eye;
+        let forward = camera.look_at;
+        // let forward_mag = forward.magnitude();
 
         if self.is_right_pressed {
             // Rescale the distance between the target and the eye so
             // that it doesn't change. The eye, therefore, still
             // lies on the circle made by the target and eye.
-            camera.eye = camera.look_at - (forward + right * self.speed).normalize() * forward_mag;
+            // camera.eye = camera.look_at - (forward + right * self.speed).normalize() * forward_mag;
+
+            camera.eye += cgmath::Vector3::cross(camera.look_at, camera.up).normalize() * self.speed;
         }
         if self.is_left_pressed {
-            camera.eye = camera.look_at - (forward - right * self.speed).normalize() * forward_mag;
+            camera.eye -= cgmath::Vector3::cross(camera.look_at, camera.up).normalize() * self.speed;
+            // camera.eye = camera.look_at - (forward - right * self.speed).normalize() * forward_mag;
         }
     }
 }

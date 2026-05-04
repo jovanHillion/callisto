@@ -107,15 +107,8 @@ impl State {
 
         let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
 
-        let camera = camera::Camera {
-            eye: (0.0, 2.0, 30.0).into(),
-            look_at: (0.0, 0.0, 0.0).into(),
-            up: cgmath::Vector3::unit_y(),
-            aspect: config.width as f32 / config.height as f32,
-            fovy: 60.0,
-            znear: 0.1,
-            zfar: 1000.0,
-        };
+        let camera = camera::Camera::new(&config);
+
         let mut camera_uniform = camera::CameraUniform::new();
         camera_uniform.update_view_proj(&camera);
 

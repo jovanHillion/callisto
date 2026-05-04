@@ -52,3 +52,4 @@ cargo run
 - [Learn WGPU](https://sotrh.github.io/learn-wgpu/)
 - [WebGPU Fundamentals](https://webgpufundamentals.org/)
 - [VoxBox](https://voxbox.store/)
+- [Camera](https://learnopengl.com/Getting-started/Camera)

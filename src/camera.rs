@@ -1,3 +1,5 @@
+use cgmath::{Array, EuclideanSpace};
+
 // #[rustfmt::skip]
 pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::from_cols(
     cgmath::Vector4::new(1.0, 0.0, 0.0, 0.0),
@@ -28,8 +30,8 @@ impl CameraUniform {
 }
 
 pub struct Camera {
-    pub eye: cgmath::Point3<f32>,
-    pub look_at: cgmath::Point3<f32>,
+    pub eye: cgmath::Vector3<f32>, // camera position
+    pub look_at: cgmath::Vector3<f32>,
     pub up: cgmath::Vector3<f32>,
     pub aspect: f32,
     pub fovy: f32,
@@ -38,9 +40,22 @@ pub struct Camera {
 }
 
 impl Camera {
+
+    pub fn new(config: &wgpu::wgt::SurfaceConfiguration<Vec<wgpu::TextureFormat>>) -> Self {
+        Self {
+            eye: (0.0, 0.0, 20.0).into(),
+            look_at: (0.0, 0.0, -1.0).into(),
+            up: cgmath::Vector3::unit_y(),
+            aspect: config.width as f32 / config.height as f32,
+            fovy: 60.0,
+            znear: 0.1,
+            zfar: 1000.0,
+        }
+    }
+
     pub fn build_view_projection_matrix(&self) -> cgmath::Matrix4<f32> {
         // From, to, pos
-        let view = cgmath::Matrix4::look_at_rh(self.eye, self.look_at, self.up);
+        let view = cgmath::Matrix4::look_at_rh(cgmath::Point3::from_vec(self.eye), cgmath::Point3::from_vec(self.eye + self.look_at), self.up);
 
         // Give the effect of depth
         let projection =
