@@ -13,3 +13,4 @@ pollster = "0.3"
 rand = "0.10.0"
 bytemuck = { version = "1.24", features = [ "derive" ] }
 cgmath = "0.18.0"
+dot_vox = "5.2.0"

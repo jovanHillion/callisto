@@ -1,3 +1,6 @@
+use cgmath::{Vector3};
+use wgpu::{VertexBufferLayout};
+
 // Pod indicates that our Vertex is "Plain Old Data", and thus can be interpreted as a &[u8]
 // Zeroable indicates that we can use std::mem::zeroed()
 #[repr(C)] // Handling the memory the same way as C does, OpenGL may use the C ABI (align the memory like in c so when the programm allocates the memory it set the bits at the irght position)
@@ -5,6 +8,71 @@
 pub struct Vertex {
     position: [f32; 3],
     color: [f32; 3]
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct InstanceRaw {
+    model: [[f32; 4]; 4],
+    color: [f32; 4]
+}
+
+impl InstanceRaw {
+    pub fn desc() -> VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<Self>() as wgpu::BufferAddress,
+            // We need to switch from using a step mode of Vertex to Instance
+            // This means that our shaders will only change to use the next
+            // instance when the shader starts processing a new instance
+            step_mode: wgpu::VertexStepMode::Instance,
+            attributes: &[
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 2,
+                    format: wgpu::VertexFormat::Float32x4
+                },
+                wgpu::VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
+                    shader_location: 3,
+                    format: wgpu::VertexFormat::Float32x4
+                },
+                wgpu::VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 8]>() as wgpu::BufferAddress,
+                    shader_location: 4,
+                    format: wgpu::VertexFormat::Float32x4
+                },
+                wgpu::VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 12]>() as wgpu::BufferAddress,
+                    shader_location: 5,
+                    format: wgpu::VertexFormat::Float32x4
+                },
+                wgpu::VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 16]>() as wgpu::BufferAddress,
+                    shader_location: 6,
+                    format: wgpu::VertexFormat::Float32x4
+                },
+            ]
+        }
+    }
+}
+
+pub struct Instance {
+    pub position: cgmath::Vector3<f32>,
+    pub rotation: cgmath::Quaternion<f32>,
+    pub color: [f32; 4]
+}
+
+impl Instance {
+    pub fn to_raw(&self) -> InstanceRaw {
+        InstanceRaw {
+            model: (cgmath::Matrix4::from_translation(Vector3 {
+                x: 0.0 as f32,
+                y: 0.0 as f32,
+                z: 0.0 as f32,
+            }) * (cgmath::Matrix4::from(self.rotation) * cgmath::Matrix4::from_translation(self.position))).into(),
+            color: self.color
+        }
+    }
 }
 
 impl Vertex {
@@ -66,7 +134,7 @@ pub const VERTICES: &[Vertex] = &[
 
 // Indices data
 pub const INDICES: &[u16] = &[
-    
+
     // Front face
 	0, 1, 2,
     0, 2, 3,
@@ -89,5 +157,5 @@ pub const INDICES: &[u16] = &[
 
     // Bottom face
     20, 22, 21,
-    20, 23, 22 
+    20, 23, 22
 ];

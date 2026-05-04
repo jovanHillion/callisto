@@ -1,31 +1,16 @@
 use std::sync::Arc;
 
+use cgmath::{self, Rotation3};
+use winit::{event::*, event_loop::ActiveEventLoop, keyboard::KeyCode, window::Window};
 
-use winit::{
-    event::*,
-    event_loop::{
-        ActiveEventLoop,
-    },
-    keyboard::{
-        KeyCode,
-    },
-    window::Window
-};
+use rand::{RngExt, rngs::ThreadRng};
 
-use rand::{
-    RngExt,
-    rngs::ThreadRng
-};
-
-use wgpu::{util::DeviceExt};
+use wgpu::util::DeviceExt;
 
 use crate::camera::{self};
-use crate::texture::{self};
 use crate::camera_controller::{self};
-use callisto::{
-    INDICES, VERTICES, Vertex
-};
-
+use crate::texture::{self};
+use callisto::{INDICES, Instance, InstanceRaw, VERTICES, Vertex};
 
 // This will store the state of our game
 pub struct State {
@@ -37,15 +22,17 @@ pub struct State {
     is_surface_configured: bool,
 
     render_pipeline: wgpu::RenderPipeline,
-    second_render_pipeline: wgpu::RenderPipeline,
-    pipeline_state: bool,
 
     // Vertex Buffer
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
 
-    // test
+    // Instance Buffer
+    instances: Vec<Instance>,
+    instance_buffer: wgpu::Buffer,
+
+    // Test
     bckg_color: wgpu::Color,
     rng: ThreadRng,
 
@@ -62,7 +49,6 @@ impl State {
     // We don't need this to be async right now,
     // but we will in the next tutorial
     pub async fn new(window: Arc<Window>) -> anyhow::Result<Self> {
-
         let size = window.inner_size();
 
         // The instance is a handle to our GPU
@@ -74,32 +60,39 @@ impl State {
 
         let surface = instance.create_surface(window.clone()).unwrap();
 
-        let adapter = instance.request_adapter(
-            &wgpu::RequestAdapterOptions {
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::LowPower,
                 compatible_surface: Some(&surface),
                 force_fallback_adapter: false,
-            }).await?;
+            })
+            .await?;
 
-        let (device, queue) = adapter.request_device(&wgpu::DeviceDescriptor {
-            label: None,
-            required_features: wgpu::Features::empty(),                     // allows us to specify what extra features we want, no specific extra features in my case
-            experimental_features: wgpu::ExperimentalFeatures::disabled(),  // specifies whether we intend to use features that are not stable yet
-            required_limits: wgpu::Limits::defaults(),                      // describes the limit of certain types of resources that we can create
-            memory_hints: Default::default(),                               // provides the adapter with a preferred memory allocation strategy
-            trace: wgpu::Trace::Off,
-        }).await?;
+        let (device, queue) = adapter
+            .request_device(&wgpu::DeviceDescriptor {
+                label: None,
+                required_features: wgpu::Features::empty(), // allows us to specify what extra features we want, no specific extra features in my case
+                experimental_features: wgpu::ExperimentalFeatures::disabled(), // specifies whether we intend to use features that are not stable yet
+                required_limits: wgpu::Limits::defaults(), // describes the limit of certain types of resources that we can create
+                memory_hints: Default::default(), // provides the adapter with a preferred memory allocation strategy
+                trace: wgpu::Trace::Off,
+            })
+            .await?;
 
         let surface_caps = surface.get_capabilities(&adapter);
-        let surface_format = surface_caps.formats.iter()
-        .find(|f| f.is_srgb()).copied().unwrap_or(surface_caps.formats[0]);
+        let surface_format = surface_caps
+            .formats
+            .iter()
+            .find(|f| f.is_srgb())
+            .copied()
+            .unwrap_or(surface_caps.formats[0]);
 
         let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,  // escribes how SurfaceTextures will be used. RENDER_ATTACHMENT specifies that the textures will be used to write to the screen
-            format: surface_format,                         // defines how SurfaceTextures will be stored on the GPU. We can get a supported format from the SurfaceCapabilities
-            width: size.width,                              // width and height are the width and the height in pixels of a SurfaceTexture. This should usually be the width and the height of the window
-            height: size.height,                            // make sure that the width and height of the SurfaceTexture are not 0, as that can cause your app to crash.
-            present_mode: surface_caps.present_modes[0],    // present_mode uses wgpu::PresentMode enum, which determines how to sync the surface with the display. For the sake of simplicity, we select the first available option. If you do not want runtime selection, PresentMode::Fifo will cap the display rate at the display's framerate. This is essentially VSync (https://docs.rs/wgpu/latest/wgpu/enum.PresentMode.html)
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT, // escribes how SurfaceTextures will be used. RENDER_ATTACHMENT specifies that the textures will be used to write to the screen
+            format: surface_format, // defines how SurfaceTextures will be stored on the GPU. We can get a supported format from the SurfaceCapabilities
+            width: size.width, // width and height are the width and the height in pixels of a SurfaceTexture. This should usually be the width and the height of the window
+            height: size.height, // make sure that the width and height of the SurfaceTexture are not 0, as that can cause your app to crash.
+            present_mode: surface_caps.present_modes[0], // present_mode uses wgpu::PresentMode enum, which determines how to sync the surface with the display. For the sake of simplicity, we select the first available option. If you do not want runtime selection, PresentMode::Fifo will cap the display rate at the display's framerate. This is essentially VSync (https://docs.rs/wgpu/latest/wgpu/enum.PresentMode.html)
             alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
@@ -115,63 +108,54 @@ impl State {
         let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
 
         let camera = camera::Camera {
-            eye: (0.0, 1.0, 2.0).into(), 
+            eye: (0.0, 2.0, 30.0).into(),
             look_at: (0.0, 0.0, 0.0).into(),
             up: cgmath::Vector3::unit_y(),
             aspect: config.width as f32 / config.height as f32,
-            fovy: 45.0,
+            fovy: 60.0,
             znear: 0.1,
             zfar: 1000.0,
         };
         let mut camera_uniform = camera::CameraUniform::new();
         camera_uniform.update_view_proj(&camera);
 
-        let camera_controller = camera_controller::CameraController::new(0.008);
+        let camera_controller = camera_controller::CameraController::new(0.5);
 
         // Uniform buffer -> Create a bind group with it
-        let camera_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Camera buffer"),
-                contents: bytemuck::cast_slice(&[camera_uniform]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            }
-        );
+        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Camera buffer"),
+            contents: bytemuck::cast_slice(&[camera_uniform]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
 
-        let camera_bind_group_layout = device.create_bind_group_layout(
-            &wgpu::BindGroupLayoutDescriptor {
+        let camera_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("Camrea Bind Group Layout"),
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX, // as we only really need camera information in the vertex shader, to manipulate our vertices
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None
-                    }
-                ]
-            }
-        );
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX, // as we only really need camera information in the vertex shader, to manipulate our vertices
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
 
         let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("camera_bind_group"),
             layout: &camera_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: camera_buffer.as_entire_binding()
-                }
-            ]
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
         });
 
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[
-                    &camera_bind_group_layout,
-                ],
+                bind_group_layouts: &[&camera_bind_group_layout],
                 immediate_size: 0,
             });
 
@@ -180,17 +164,17 @@ impl State {
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
-                entry_point: Some("vs_main"),               // Specifies the entry point
-                buffers: &[
-                    Vertex::desc(),
-                ],                               // Here we are giving the buffer of vertices we want to draw, for now we are creating it in the vertex shader
+                entry_point: Some("vs_main"), // Specifies the entry point
+                buffers: &[Vertex::desc(), InstanceRaw::desc()], // Here we are giving the buffer of vertices we want to draw, for now we are creating it in the vertex shader
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
-            fragment: Some(wgpu::FragmentState {            // The fragment is technically optional, so you have to wrap it in Some(). We need it if we want to store color data to the surface
+            fragment: Some(wgpu::FragmentState {
+                // The fragment is technically optional, so you have to wrap it in Some(). We need it if we want to store color data to the surface
                 module: &shader,
                 entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {    // Tells wgpu what color outputs it should set up. Currently, we only need one for the surface.
-                    format: config.format,                  // We use the surface's format so that copying to it is easy,
+                targets: &[Some(wgpu::ColorTargetState {
+                    // Tells wgpu what color outputs it should set up. Currently, we only need one for the surface.
+                    format: config.format, // We use the surface's format so that copying to it is easy,
                     blend: Some(wgpu::BlendState::REPLACE), // Specifies that the blending should just replace old pixel data with new data
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
@@ -201,8 +185,8 @@ impl State {
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList, // Using PrimitiveTopology::TriangleList means that every three vertices will correspond to one triangle
                 strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,   // FrontFace::Ccw means that a triangle is facing forward if the vertices are arranged in a counter-clockwise direction
-                cull_mode: Some(wgpu::Face::Back),  // Triangles that are not considered facing forward are culled (not included in the render) as specified by CullMode::Bac
+                front_face: wgpu::FrontFace::Ccw, // FrontFace::Ccw means that a triangle is facing forward if the vertices are arranged in a counter-clockwise direction
+                cull_mode: Some(wgpu::Face::Back), // Triangles that are not considered facing forward are culled (not included in the render) as specified by CullMode::Bac
                 polygon_mode: wgpu::PolygonMode::Fill,
                 unclipped_depth: false,
                 conservative: false,
@@ -213,62 +197,20 @@ impl State {
                 depth_write_enabled: true,
                 depth_compare: wgpu::CompareFunction::Less,
                 stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default()
+                bias: wgpu::DepthBiasState::default(),
             }),
             multisample: wgpu::MultisampleState {
-                count: 1,                           // Count determines how many samples the pipeline will use
-                mask: !0,                           // Mask specifies which samples should be active. In this case, we are using all of them
-                alpha_to_coverage_enabled: false,   // alpha_to_coverage_enabled has to do with anti-aliasing. We're not covering anti-aliasing here
+                count: 1,                         // Count determines how many samples the pipeline will use
+                mask: !0, // Mask specifies which samples should be active. In this case, we are using all of them
+                alpha_to_coverage_enabled: false, // alpha_to_coverage_enabled has to do with anti-aliasing. We're not covering anti-aliasing here
             },
-            multiview_mask: None,                   // Multiview indicates how many array layers the render attachments can have. We won't be rendering to array textures, so we can set this to None
-            cache: None,                            // cache allows wgpu to cache shader compilation data. Only really useful for Android build targets
-
-        });
-
-        let second_render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&render_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs_test_main"),               // Specifies the entry point
-                buffers: &[],                               // Here we are giving the buffer of vertices we want to draw, for now we are creating it in the vertex shader
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: Some(wgpu::FragmentState {            // The fragment is technically optional, so you have to wrap it in Some(). We need it if we want to store color data to the surface
-                module: &shader,
-                entry_point: Some("fs_test_main"),
-                targets: &[Some(wgpu::ColorTargetState {    // Tells wgpu what color outputs it should set up. Currently, we only need one for the surface.
-                    format: config.format,                  // We use the surface's format so that copying to it is easy,
-                    blend: Some(wgpu::BlendState::REPLACE), // Specifies that the blending should just replace old pixel data with new data
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            // The primitive field describes how to interpret our vertices when converting them into triangles
-            // The front_face and cull_mode fields tell wgpu how to determine whether a given triangle is facing forward or not
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList, // Using PrimitiveTopology::TriangleList means that every three vertices will correspond to one triangle
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,   // FrontFace::Ccw means that a triangle is facing forward if the vertices are arranged in a counter-clockwise direction
-                cull_mode: Some(wgpu::Face::Back),  // Triangles that are not considered facing forward are culled (not included in the render) as specified by CullMode::Bac
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: None,                    // We're not using a depth/stencil buffer currently, so we leave depth_stencil as None
-            multisample: wgpu::MultisampleState {
-                count: 1,                           // Count determines how many samples the pipeline will use
-                mask: !0,                           // Mask specifies which samples should be active. In this case, we are using all of them
-                alpha_to_coverage_enabled: false,   // alpha_to_coverage_enabled has to do with anti-aliasing. We're not covering anti-aliasing here
-            },
-            multiview_mask: None,                   // Multiview indicates how many array layers the render attachments can have. We won't be rendering to array textures, so we can set this to None
-            cache: None,                            // cache allows wgpu to cache shader compilation data. Only really useful for Android build targets
-
+            multiview_mask: None, // Multiview indicates how many array layers the render attachments can have. We won't be rendering to array textures, so we can set this to None
+            cache: None, // cache allows wgpu to cache shader compilation data. Only really useful for Android build targets
         });
 
         // Vertex Buffer
         // The create_buffer_init() method expects a &[u8], so we are using Bytemuck to make it for us
-        let vertex_buffer = device.create_buffer_init( &wgpu::util::BufferInitDescriptor {
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
             contents: bytemuck::cast_slice(VERTICES),
             usage: wgpu::BufferUsages::VERTEX,
@@ -278,13 +220,75 @@ impl State {
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Index Buffer"),
             contents: bytemuck::cast_slice(INDICES),
-            usage: wgpu::BufferUsages::INDEX
+            usage: wgpu::BufferUsages::INDEX,
         });
 
-        let num_indices= INDICES.len() as u32;
+        // Instancing a model
+        let filename = "assets/caveexpress-npc-fish.vox";
 
-        let depth_texture = texture::Texture::create_depth_texture(&device, &config, "depth_texture");
-        
+        let voxel_data = dot_vox::load(filename);
+        let voxel_data = match voxel_data {
+            Ok(voxel_data) => voxel_data,
+            Err(e) => panic!("{}", e),
+        };
+
+        // println!("{:#?}", voxel_data.palette);
+
+        let model = voxel_data.models.first();
+        let model = match model {
+            None => panic!("Model empty"),
+            Some(model) => model,
+        };
+
+        // println!("{:#?}", model.voxels.len());
+        // println!("{:#?}", model.size);
+
+        let translation: cgmath::Vector3<f32> = cgmath::Vector3::new(
+            model.size.x as f32,
+            model.size.y as f32,
+            model.size.z as f32,
+        );
+
+        let rotation =
+            cgmath::Quaternion::from_axis_angle(cgmath::Vector3::unit_x(), cgmath::Deg(-90.0));
+        let instances = (0..model.voxels.len())
+            .map(|i| {
+                let position: cgmath::Vector3<f32> = cgmath::Vector3::new(
+                    model.voxels[i].x as f32,
+                    model.voxels[i].y as f32,
+                    model.voxels[i].z as f32,
+                );
+
+                let position = position - (translation / 2.0);
+
+                let color_index = model.voxels[i].i as usize;
+
+                let color = voxel_data.palette.get(color_index);
+
+                let color = match color {
+                    None => panic!("Color out of range"),
+                    Some(color) => color
+                };
+
+                let color = [color.r as f32 / 255.0, color.g as f32 / 255.0, color.b as f32 / 255.0, color.a as f32 / 255.0];
+
+                // println!("{:#?}", color);
+
+                Instance { position, rotation, color }
+            }).collect::<Vec<_>>();
+
+        let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
+        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Instance Buffer"),
+            contents: bytemuck::cast_slice(&instance_data),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        let num_indices = INDICES.len() as u32;
+
+        let depth_texture =
+            texture::Texture::create_depth_texture(&device, &config, "depth_texture");
+
         Ok(Self {
             surface,
             device,
@@ -293,11 +297,11 @@ impl State {
             is_surface_configured: false,
             window,
             render_pipeline,
-            second_render_pipeline,
-            pipeline_state: false,
             vertex_buffer,
             index_buffer,
             num_indices,
+            instances,
+            instance_buffer,
             bckg_color: default_color,
             rng: rand::rng(),
             camera,
@@ -305,7 +309,7 @@ impl State {
             camera_buffer,
             camera_bind_group,
             camera_controller,
-            depth_texture
+            depth_texture,
         })
     }
 
@@ -315,38 +319,51 @@ impl State {
             self.config.height = height;
             self.surface.configure(&self.device, &self.config);
             self.is_surface_configured = true; // We need the surface to be configured before we can do anything with it. We set the is_surface_configured flag to true here and we'll check it in the render() function
+            self.depth_texture = texture::Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
         }
     }
 
     pub fn handle_key(&mut self, event_loop: &ActiveEventLoop, code: KeyCode, is_pressed: bool) {
-        
         match (code, is_pressed) {
             (KeyCode::Escape, true) => event_loop.exit(),
-            (KeyCode::Space, true) => self.pipeline_state = !self.pipeline_state,
+            (KeyCode::Space, true) => println!("Space bar pressed"),
             _ => {
                 self.camera_controller.handle_key(code, is_pressed);
             }
         }
     }
 
-    pub fn handle_mouse_input(&mut self, device_id: DeviceId, state: ElementState, button: MouseButton) {
+    pub fn handle_mouse_input(
+        &mut self,
+        device_id: DeviceId,
+        state: ElementState,
+        button: MouseButton,
+    ) {
         println!("Device id: {:?}", device_id);
         println!("State: {:?}", state);
         println!("Button: {:?}", button);
 
         match state {
             ElementState::Pressed => {
-                self.bckg_color = wgpu::Color { r: (self.rng.random_range(0.0..1.0)), g: (self.rng.random_range(0.0..1.0)), b: (self.rng.random_range(0.0..1.0)), a: (1.0) };
+                self.bckg_color = wgpu::Color {
+                    r: (self.rng.random_range(0.0..1.0)),
+                    g: (self.rng.random_range(0.0..1.0)),
+                    b: (self.rng.random_range(0.0..1.0)),
+                    a: (1.0),
+                };
             }
             _ => {}
         }
-
     }
 
     pub fn update(&mut self) {
         self.camera_controller.update_camera(&mut self.camera);
         self.camera_uniform.update_view_proj(&self.camera);
-        self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::cast_slice(&[self.camera_uniform]),
+        );
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -359,11 +376,15 @@ impl State {
 
         let output = self.surface.get_current_texture()?;
 
-        let texture_view = output.texture.create_view(&wgpu::TextureViewDescriptor::default()); // creates a TextureView with default settings. We need to do this because we want to control how the render code interacts with the texture
+        let texture_view = output
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default()); // creates a TextureView with default settings. We need to do this because we want to control how the render code interacts with the texture
 
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Render Encoder"),
-        });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Render Encoder"),
+            });
 
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render Pass"),
@@ -389,23 +410,21 @@ impl State {
             multiview_mask: None,
         });
 
-        if !self.pipeline_state {
-            render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-            /*
-                The first is what buffer slot to use for this vertex buffer. You can have multiple vertex buffers set at a time
+        // Redering
+        render_pass.set_pipeline(&self.render_pipeline);
+        render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+        /*
+            The first parameter is the buffer slot to use for this vertex buffer. You can have multiple vertex buffers set at a time
 
-                The second parameter is the slice of the buffer to use.
-                You can store as many objects in a buffer as your hardware allows, so slice allows us to specify which portion of the buffer to use.
-                We use .. to specify the entire buffer.
-            */
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
-        } else {
-            render_pass.set_pipeline(&self.second_render_pipeline);
-            render_pass.draw(0..3, 0..1);
-        }
+            The second parameter is the slice of the buffer to use.
+            You can store as many objects in a buffer as your hardware allows, so slice allows us to specify which portion of the buffer to use.
+            We use .. to specify the entire buffer.
+        */
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+
+        render_pass.draw_indexed(0..self.num_indices, 0, 0..self.instances.len() as _);
 
         drop(render_pass); // used to drop the reference of the encoder so we can call the finish method from the encoder
 

@@ -17,7 +17,7 @@ pub struct CameraController {
 impl CameraController {
     pub fn new(speed: f32) -> Self {
         Self {
-            speed, 
+            speed,
             is_forward_pressed:     false,
             is_backward_pressed:    false,
             is_left_pressed:        false,
@@ -69,8 +69,8 @@ impl CameraController {
         let forward_mag = forward.magnitude();
 
         if self.is_right_pressed {
-            // Rescale the distance between the target and the eye so 
-            // that it doesn't change. The eye, therefore, still 
+            // Rescale the distance between the target and the eye so
+            // that it doesn't change. The eye, therefore, still
             // lies on the circle made by the target and eye.
             camera.eye = camera.look_at - (forward + right * self.speed).normalize() * forward_mag;
         }
