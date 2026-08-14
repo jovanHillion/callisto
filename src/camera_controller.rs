@@ -57,12 +57,8 @@ impl CameraController {
     }
 
     pub fn rotate_camera(&mut self, x: f64, y :f64) {
-
-        println!("x: {}, y {}", x, y);
-
-        let sensitivity = 0.003f64;
-
         // Add the motion values to the camera's yaw and pitch values
+        let sensitivity = 0.1f64;
         self.yaw += x * sensitivity;
         self.pitch += -y * sensitivity;
 
@@ -74,11 +70,13 @@ impl CameraController {
             self.pitch = -89.0f64;
         }
 
+        println!("pitch: {}, yaw {}", self.pitch, self.yaw);
+
         // Calculate the direction vector
-        self.direction.x = cgmath::Angle::cos(cgmath::Rad(self.yaw)) * cgmath::Angle::cos(cgmath::Rad(self.pitch));
-        self.direction.y = cgmath::Angle::sin(cgmath::Rad(self.pitch));
-        self.direction.z = cgmath::Angle::sin(cgmath::Rad(self.yaw)) * cgmath::Angle::cos(cgmath::Rad(self.pitch));
-        self.direction.normalize();
+        self.direction.x = cgmath::Angle::cos(cgmath::Deg(self.yaw)) * cgmath::Angle::cos(cgmath::Deg(self.pitch));
+        self.direction.y = cgmath::Angle::sin(cgmath::Deg(self.pitch));
+        self.direction.z = cgmath::Angle::sin(cgmath::Deg(self.yaw)) * cgmath::Angle::cos(cgmath::Deg(self.pitch));
+        self.direction = self.direction.normalize();
     }
 
     pub fn update_camera(&self, camera: &mut camera::Camera) {
