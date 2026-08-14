@@ -1,4 +1,4 @@
-use cgmath::{Array, EuclideanSpace};
+use cgmath::{EuclideanSpace};
 
 // #[rustfmt::skip]
 pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::from_cols(
@@ -31,7 +31,7 @@ impl CameraUniform {
 
 pub struct Camera {
     pub eye: cgmath::Vector3<f32>, // camera position
-    pub look_at: cgmath::Vector3<f32>,
+    pub look_at: cgmath::Vector3<f32>, // Camerafront
     pub up: cgmath::Vector3<f32>,
     pub aspect: f32,
     pub fovy: f32,
