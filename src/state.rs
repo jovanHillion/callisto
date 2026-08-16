@@ -324,9 +324,6 @@ impl State {
     }
 
     pub fn handle_cursor(&mut self, x:f64, y:f64) {
-        println!("X: {}, Y: {}", x, y);
-
-        // TODO: Move this logic to the camera
         self.camera_controller.rotate_camera(x, y);
     }
 
