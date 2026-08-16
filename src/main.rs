@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc};
 
 mod camera;
 mod camera_controller;
@@ -43,6 +43,27 @@ impl ApplicationHandler<state::State> for App {
         self.state = Some(event);
     }
 
+    fn device_event(
+        &mut self,
+        _event_loop: &ActiveEventLoop,
+        _device_id: DeviceId,
+        event: DeviceEvent,
+    )
+    {
+        let my_state = match &mut self.state {
+                Some(canvas) => canvas,
+                None => return,
+            };
+
+        match event {
+            winit::event::DeviceEvent::MouseMotion { delta } => {
+                // println!("Mouse Motion: x: {}, y: {}", delta.0, delta.1);
+                my_state.handle_cursor(delta.0, delta.1);
+            },
+            _ => {}
+        }
+    }
+
     fn window_event(
         &mut self,
         event_loop: &ActiveEventLoop,
@@ -73,6 +94,7 @@ impl ApplicationHandler<state::State> for App {
                     }
                 }
             }
+            // WindowEvent::CursorMoved { device_id, position } => my_state.handle_cursor(device_id, position.x, position.y),
             WindowEvent::KeyboardInput {
                 event:
                     KeyEvent {

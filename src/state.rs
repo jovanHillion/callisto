@@ -1,3 +1,4 @@
+use std::println;
 use std::sync::Arc;
 
 use cgmath::{self, Rotation3};
@@ -107,15 +108,8 @@ impl State {
 
         let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
 
-        let camera = camera::Camera {
-            eye: (0.0, 2.0, 30.0).into(),
-            look_at: (0.0, 0.0, 0.0).into(),
-            up: cgmath::Vector3::unit_y(),
-            aspect: config.width as f32 / config.height as f32,
-            fovy: 60.0,
-            znear: 0.1,
-            zfar: 1000.0,
-        };
+        let camera = camera::Camera::new(&config);
+
         let mut camera_uniform = camera::CameraUniform::new();
         camera_uniform.update_view_proj(&camera);
 
@@ -289,6 +283,12 @@ impl State {
         let depth_texture =
             texture::Texture::create_depth_texture(&device, &config, "depth_texture");
 
+        window.set_cursor_visible(false);
+        // Not all the platform may support cursor loocked, confined serves as a fallback
+        window.set_cursor_grab(winit::window::CursorGrabMode::Locked)
+            .or_else(|_| window.set_cursor_grab(winit::window::CursorGrabMode::Confined))
+                .unwrap();
+
         Ok(Self {
             surface,
             device,
@@ -321,6 +321,13 @@ impl State {
             self.is_surface_configured = true; // We need the surface to be configured before we can do anything with it. We set the is_surface_configured flag to true here and we'll check it in the render() function
             self.depth_texture = texture::Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
         }
+    }
+
+    pub fn handle_cursor(&mut self, x:f64, y:f64) {
+        println!("X: {}, Y: {}", x, y);
+
+        // TODO: Move this logic to the camera
+        self.camera_controller.rotate_camera(x, y);
     }
 
     pub fn handle_key(&mut self, event_loop: &ActiveEventLoop, code: KeyCode, is_pressed: bool) {
